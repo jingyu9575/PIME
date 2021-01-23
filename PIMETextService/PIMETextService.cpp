@@ -26,6 +26,7 @@
 #include "PIMEImeModule.h"
 #include "resource.h"
 #include <Shellapi.h>
+#include <Shlobj.h>
 #include <sys/stat.h>
 
 using namespace std;
@@ -227,8 +228,15 @@ void TextService::onLangProfileDeactivated(REFIID lang) {
 }
 
 void TextService::createCandidateWindow(Ime::EditSession* session) {
+    if (!candidateWindowTheme_) {
+        wchar_t appdata[MAX_PATH];
+        ::SHGetFolderPathW(NULL, CSIDL_APPDATA, NULL, 0, appdata);
+        candidateWindowTheme_ = std::make_unique<Ime::CandidateWindow::Theme>(
+            std::filesystem::path(appdata) / "PIME" / "theme");
+    }
 	if (!candidateWindow_) {
-		candidateWindow_ = new Ime::CandidateWindow(this, session); // assigning to smart ptr also inrease ref count
+		candidateWindow_ = new Ime::CandidateWindow(this, session,
+            &*candidateWindowTheme_); // assigning to smart ptr also inrease ref count
 		candidateWindow_->Release();  // decrease ref count caused by new
 
 		candidateWindow_->setFont(font_);
@@ -277,12 +285,7 @@ void TextService::updateCandidates(Ime::EditSession* session) {
 	candidateWindow_->recalculateSize();
 	candidateWindow_->refresh();
 
-	RECT textRect;
-	// get the position of composition area from TSF
-	if (selectionRect(session, &textRect)) {
-		// FIXME: where should we put the candidate window?
-		candidateWindow_->move(textRect.left, textRect.bottom);
-	}
+    updateCandidatesWindow(session);
 
 	if (validCandidateListElementId_) {
 		auto elementMgr = Ime::ComPtr<ITfUIElementMgr>::queryFrom(threadMgr());
@@ -296,9 +299,19 @@ void TextService::updateCandidatesWindow(Ime::EditSession* session) {
     if (candidateWindow_) {
         RECT textRect;
         // get the position of composition area from TSF
-        if (selectionRect(session, &textRect)) {
-            // FIXME: where should we put the candidate window?
-            candidateWindow_->move(textRect.left, textRect.bottom);
+        if (compositionRect(session, &textRect)) {
+            auto monitor = MonitorFromWindow(compositionWindow(session),
+                MONITOR_DEFAULTTONEAREST);
+            MONITORINFO monitorInfo{ sizeof(monitorInfo) };
+            GetMonitorInfoW(monitor, &monitorInfo);
+            int w, h;
+            candidateWindow_->size(&w, &h);
+            auto y = textRect.bottom;
+            if (y + h > monitorInfo.rcWork.bottom)
+                y = textRect.top - h;
+            auto x = (max) ((min) (textRect.left, monitorInfo.rcWork.right - w),
+                monitorInfo.rcWork.left);
+            candidateWindow_->move((int) x, (int) y);
         }
     }
 }
