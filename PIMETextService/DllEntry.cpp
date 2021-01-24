@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <filesystem>
 #include <ShlObj.h>
 #include <Shlwapi.h> // for PathIsRelative
 #include <VersionHelpers.h>  // Provided by Windows SDK >= 8.1
@@ -97,7 +98,12 @@ STDAPI DllRegisterServer(void) {
 			do {
 				if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) { // this is a subdir
 					if (findData.cFileName[0] != '.') {
-						std::wstring imejson = dirPath;
+                        auto disabled = dirPath + L'\\' + findData.cFileName + L"\\.disabled";
+                        if (std::filesystem::exists(std::filesystem::path(dirPath) /
+                            findData.cFileName / L".disabled"))
+                            continue;
+
+                        std::wstring imejson = dirPath;
 						imejson += '\\';
 						imejson += findData.cFileName;
 						imejson += L"\\ime.json";
