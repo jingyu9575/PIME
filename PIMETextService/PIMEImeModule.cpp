@@ -22,11 +22,14 @@
 #include <string>
 #include <fstream>
 #include <cstring>
+#include <filesystem>
 #include <ShlObj.h>
 #include <Shellapi.h>
 #include <Shlwapi.h>
 #include <json/json.h>
 #include "../libIME2/src/Utils.h"
+
+EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 
 namespace PIME {
 
@@ -38,16 +41,27 @@ const GUID g_textServiceClsid =
 ImeModule::ImeModule(HMODULE module):
 	Ime::ImeModule(module, g_textServiceClsid) {
 	wchar_t path[MAX_PATH];
-	HRESULT result;
-	// get the program data directory
-	// try C:\program files (x86) first
-	result = ::SHGetFolderPathW(NULL, CSIDL_PROGRAM_FILESX86, NULL, 0, path);
-	if(result != S_OK) // failed, fall back to C:\program files
-		result = ::SHGetFolderPathW(NULL, CSIDL_PROGRAM_FILES, NULL, 0, path);
-	if(result == S_OK) { // program files folder is found
-		programDir_ = path;
-		programDir_ += L"\\PIME";
+    if (auto n = GetModuleFileNameW((HINSTANCE) &__ImageBase, path, _countof(path))) {
+        auto dllPath = std::filesystem::path(std::wstring(path, path + n));
+        auto dir = dllPath.parent_path().parent_path();
+        if (std::filesystem::exists(dir / L"backends.json")) {
+            programDir_ = dir.wstring();
+        }
+    }
+    if (programDir_.empty()) {
+        HRESULT result;
+        // get the program data directory
+        // try C:\program files (x86) first
+        result = ::SHGetFolderPathW(NULL, CSIDL_PROGRAM_FILESX86, NULL, 0, path);
+        if (result != S_OK) // failed, fall back to C:\program files
+            result = ::SHGetFolderPathW(NULL, CSIDL_PROGRAM_FILES, NULL, 0, path);
+        if (result == S_OK) { // program files folder is found
+            programDir_ = path;
+            programDir_ += L"\\PIME";
+        }
+    }
 
+    if (!programDir_.empty()) {
 		// load backend information
 		std::ifstream fp(programDir_ + L"\\backends.json", std::ifstream::binary);
 		if (fp) {
