@@ -25,8 +25,6 @@
 #include <libIME2/src/LangBarButton.h>
 #include "PIMEImeModule.h"
 #include "resource.h"
-#include <Shellapi.h>
-#include <Shlobj.h>
 #include <sys/stat.h>
 
 using namespace std;
@@ -228,15 +226,9 @@ void TextService::onLangProfileDeactivated(REFIID lang) {
 }
 
 void TextService::createCandidateWindow(Ime::EditSession* session) {
-    if (!candidateWindowTheme_) {
-        wchar_t appdata[MAX_PATH];
-        ::SHGetFolderPathW(NULL, CSIDL_APPDATA, NULL, 0, appdata);
-        candidateWindowTheme_ = std::make_unique<Ime::CandidateWindow::Theme>(
-            std::filesystem::path(appdata) / "PIME" / "theme");
-    }
 	if (!candidateWindow_) {
 		candidateWindow_ = new Ime::CandidateWindow(this, session,
-            &*candidateWindowTheme_); // assigning to smart ptr also inrease ref count
+            candidateWindowTheme_); // assigning to smart ptr also inrease ref count
 		candidateWindow_->Release();  // decrease ref count caused by new
 
 		candidateWindow_->setFont(font_);

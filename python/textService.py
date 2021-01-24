@@ -15,6 +15,12 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
+import os
+from pathlib import Path
+from configparser import ConfigParser
+import base64
+
+
 # keyboard modifiers used by TSF (from msctf.h of Windows SDK)
 TF_MOD_ALT                       = 0x0001
 TF_MOD_CONTROL                   = 0x0002
@@ -111,7 +117,7 @@ class TextService:
             self.onCommand(commandId, commandType)
         elif method == "onMenu":
             buttonId = msg["id"]
-            ret = self.onMenu(buttonId)
+            ret = self.onMenu(buttonId) # pylint: disable=assignment-from-none
         elif method == "onCompartmentChanged":
             guid = msg["guid"].lower()
             self.onCompartmentChanged(guid)
@@ -142,6 +148,7 @@ class TextService:
 
     # methods that should be implemented by derived classes
     def onActivate(self):
+        self.customizeUI(**self.loadTheme())
         pass
 
     def onDeactivate(self):
@@ -280,3 +287,26 @@ class TextService:
 
     def hideMessage(self):
         self.currentReply["hideMessage"] = True
+
+    @staticmethod
+    def loadTheme():
+        dir = Path(os.path.expandvars('%APPDATA%')) / 'PIME/theme'
+        config = ConfigParser()
+        config.read([dir / 'theme.conf'])
+        result = {}
+
+        def read_file_base64(filename):
+            with open(dir / filename, "rb") as file:
+                return base64.b64encode(file.read()).decode()
+
+        for section in config.sections():
+            for key in config[section]:
+                conv = {
+                    'left': int, 'right': int, 'top': int, 'bottom': int,
+                    'image': read_file_base64,
+                }.get(key.lower(), str)
+                try:
+                    result[f'{section}/{key}'] = conv(config[section][key])
+                except:
+                    pass
+        return result

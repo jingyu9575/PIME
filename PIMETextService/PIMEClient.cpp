@@ -110,7 +110,12 @@ void Client::updateUI(const Json::Value& data) {
 		else if (value.isBool() && strcmp(name, "candUseCursor") == 0) {
 			textService_->setCandUseCursor(value.asBool());
 		}
-	}
+
+        if (value.isString())
+            textService_->updateTheme(name, utf8ToUtf16(value.asCString()));
+        else if (value.isInt())
+            textService_->updateTheme(name, value.asInt());
+    }
 }
 
 void Client::updateSelectionKeys(Json::Value& msg) {

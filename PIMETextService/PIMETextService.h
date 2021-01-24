@@ -118,6 +118,11 @@ public:
 		updateFont_ = true;
 	}
 
+    bool updateTheme(const std::string& key,
+        const Ime::CandidateWindowTheme::OptionValue& value) {
+        return candidateWindowTheme_.update(key, value);
+    }
+
 	bool showingCandidates() {
 		return showingCandidates_;
 	}
@@ -151,7 +156,7 @@ private:
 private:
 	bool validCandidateListElementId_;
 	DWORD candidateListElementId_;
-    std::unique_ptr<Ime::CandidateWindow::Theme> candidateWindowTheme_;
+    Ime::CandidateWindowTheme candidateWindowTheme_;
 	Ime::ComPtr<Ime::CandidateWindow> candidateWindow_; // this is a ref-counted COM object and should not be managed with std::unique_ptr
 	bool showingCandidates_;
 	std::vector<std::wstring> candidates_; // current candidate list
