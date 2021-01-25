@@ -11,7 +11,7 @@ Code in these directories are licensed under LGPL 2.0:
 
 The following components are from other projects:
   python:
-    Embeddable version of python 3.5 is licensed under PSF.
+    Embeddable version of python 3 is licensed under PSF.
     https://www.python.org/
 
   python\tornado:
@@ -38,3 +38,7 @@ The following components are from other projects:
     framework + algorithm RIME developed by lotem licensed under BSD license.
     http://rime.im/
     https://github.com/rime
+
+  python\input_methods\libpinyin
+    licensed under GNU GPL v3.0 license.
+    https://github.com/libpinyin/libpinyin
