@@ -20,9 +20,10 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def has_modifiers(keyEvent: KeyEvent):
-    return any(keyEvent.isKeyDown(k)
-               for k in [VK_SHIFT, VK_CONTROL, VK_MENU, VK_APPS])
+def modifier_down_count(keyEvent: KeyEvent):
+    return sum(keyEvent.isKeyDown(k) for k in [
+        VK_LSHIFT, VK_LCONTROL, VK_LMENU, VK_LWIN,
+        VK_RSHIFT, VK_RCONTROL, VK_RMENU, VK_RWIN])
 
 
 def char_from_key_event(keyEvent: KeyEvent):
@@ -66,6 +67,7 @@ class IMETextService(TextService):
     def onActivate(self):
         super().onActivate()
         self._pressed_modifier_key = None
+        self._number_decimal_state = False
         self._punctuation_indexes = defaultdict(int)
         self._base_dir = Path(__file__).parent.resolve()
 
@@ -179,12 +181,14 @@ class IMETextService(TextService):
         self._update_mode_icon()
 
     def filterKeyDown(self, keyEvent: KeyEvent):
+        char = char_from_key_event(keyEvent)
+        self._number_decimal_state = not self._input and (
+            '0' <= char <= '9' or self._number_decimal_state and char == '.')
+
         self._pressed_modifier_key = None
         for modifier in [VK_SHIFT, VK_CONTROL]:
             if (keyEvent.keyCode == modifier and
-                sum([keyEvent.isKeyDown(k) for k in [
-                    VK_LSHIFT, VK_LCONTROL, VK_LMENU, VK_LWIN,
-                    VK_RSHIFT, VK_RCONTROL, VK_RMENU, VK_RWIN]]) == 1):
+                    modifier_down_count(keyEvent) == 1):
                 self._pressed_modifier_key = modifier
                 return True
 
@@ -195,7 +199,6 @@ class IMETextService(TextService):
             return False
 
         if not self._input:
-            char = char_from_key_event(keyEvent)
             return ('a' <= char <= 'z' or 'A' <= char <= 'Z' or
                     char in self._punctuation and self._punctuation_enabled)
         return True
@@ -353,18 +356,23 @@ class IMETextService(TextService):
                     self._commit(append=s, rest=False)
                     return True
 
-        if self._enabled and (
-                char in self._punctuation and self._punctuation_enabled):
-            value = self._punctuation[char]
-            if isinstance(value, list):
-                index = self._punctuation_indexes[char]
-                self._punctuation_indexes[char] = (index + 1) % len(value)
-                value = value[index]
-            self._choose(None, append=value)
-            return True
+        if self._enabled:
+            if not self._input and char == '.' and self._number_decimal_state:
+                self._number_decimal_state = False
+                self._commit(append='.')
+                return True
+
+            if char in self._punctuation and self._punctuation_enabled:
+                value = self._punctuation[char]
+                if isinstance(value, list):
+                    index = self._punctuation_indexes[char]
+                    self._punctuation_indexes[char] = (index + 1) % len(value)
+                    value = value[index]
+                self._choose(None, append=value)
+                return True
 
         if self._full_width_ascii and keyEvent.isPrintableChar():
-            self._commit(append=char)
+            self._choose(None, append=char)
             return True
 
         if char == '\x1B':
