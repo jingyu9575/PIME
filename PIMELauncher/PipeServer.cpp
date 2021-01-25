@@ -73,7 +73,6 @@ static constexpr wchar_t CONFIG_FILE_REL_PATH[] = L"\\PIMELauncher.json";
 
 
 PipeServer::PipeServer() :
-	quitExistingLauncher_(false),
 	singleInstanceMutex_(nullptr),
 	logLevel_{spdlog::level::warn} {
 
@@ -270,24 +269,22 @@ static inline bool eqi(const wchar_t* v0, const wchar_t* v1) {
     return _wcsicmp(v0, v1) == 0;
 }
 
-void PipeServer::parseCommandLine(LPSTR cmd) {
+void PipeServer::parseCommandLine() {
 	int argc;
 	wchar_t** argv = CommandLineToArgvW(GetCommandLine(), &argc);
 	// parse command line options
 	for (int i = 1; i < argc; ++i) {
 		const wchar_t* arg = argv[i];
-		if (eqi(arg, L"/quit"))
-			quitExistingLauncher_ = true;
-        else if (eqi(arg, L"/tray"))
+        if (eqi(arg, L"/quit")) {
+            messageExistingLauncher_ = WM_QUIT;
+            messageExistingLauncherWParam_ = 0;
+        } else if (eqi(arg, L"/restart")) {
+            messageExistingLauncher_ = WM_COMMAND;
+            messageExistingLauncherWParam_ = ID_RESTART_PIME_BACKENDS;
+        } else if (eqi(arg, L"/tray"))
             useTrayIcon_ = true;
 	}
 	LocalFree(argv);
-}
-
-// send IPC message "quit" to the existing PIME Launcher process.
-void PipeServer::terminateExistingLauncher(HWND existingHwnd) {
-	PostMessage(existingHwnd, WM_QUIT, 0, 0);
-	::DestroyWindow(existingHwnd);
 }
 
 PipeClient* PipeServer::clientFromId(const std::string& clientId) {
@@ -339,13 +336,15 @@ bool PipeServer::initSingleInstance() {
     return true;
 }
 
-int PipeServer::exec(LPSTR cmd) {
-	parseCommandLine(cmd);
+int PipeServer::exec() {
+	parseCommandLine();
 
-	if (quitExistingLauncher_) { // terminate existing launcher process
-		if (HWND existingHwnd = ::FindWindowExW(HWND_MESSAGE, NULL,
+	if (messageExistingLauncher_) { // terminate existing launcher process
+		if (HWND hwnd = ::FindWindowExW(HWND_MESSAGE, NULL,
             wndClassName_, messageWindowTitle().c_str())) {
-			terminateExistingLauncher(existingHwnd);
+            PostMessageW(hwnd, messageExistingLauncher_, messageExistingLauncherWParam_, 0);
+            if (messageExistingLauncher_ == WM_QUIT)
+                ::DestroyWindow(hwnd);
         } else
             return 1;
         return 0;

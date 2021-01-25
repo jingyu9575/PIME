@@ -55,7 +55,7 @@ public:
 
 	~PipeServer();
 
-	int exec(LPSTR cmd);
+	int exec();
 
 	static PipeServer* get() { // get the singleton object
 		return singleton_;
@@ -98,8 +98,7 @@ private:
     bool initSingleInstance();
 	static std::wstring getPipeName(const wchar_t* baseName);
 	void initPipe(uv_pipe_t* pipe, const wchar_t* appName, SECURITY_ATTRIBUTES* sa = nullptr);
-	void terminateExistingLauncher(HWND existingHwnd);
-	void parseCommandLine(LPSTR cmd);
+	void parseCommandLine();
 
 	// client handling
 	void onNewClientConnected(uv_stream_t* server, int status);
@@ -110,7 +109,8 @@ private:
     PipeSecurityAttributes securityAttributes_;
 	
 	std::wstring topDirPath_;
-	bool quitExistingLauncher_;
+    UINT messageExistingLauncher_ = 0;
+    WPARAM messageExistingLauncherWParam_ = 0;
     bool useTrayIcon_ = false;
 	static PipeServer* singleton_;
 	static wchar_t singleInstanceMutexName_[];
