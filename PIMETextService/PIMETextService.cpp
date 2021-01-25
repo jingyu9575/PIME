@@ -292,6 +292,9 @@ void TextService::updateCandidatesWindow(Ime::EditSession* session) {
         RECT textRect;
         // get the position of composition area from TSF
         if (compositionRect(session, &textRect)) {
+            if (textRect.left == 0 && textRect.top == 0 &&
+                textRect.right == 1 && textRect.bottom == 1)
+                return;
             auto monitor = MonitorFromWindow(compositionWindow(session),
                 MONITOR_DEFAULTTONEAREST);
             MONITORINFO monitorInfo{ sizeof(monitorInfo) };
