@@ -141,7 +141,7 @@ class IMETextService(TextService):
             candPerRow=self._config['classic_ui_candidates_per_row'],
             candUseCursor=self._config['classic_ui_show_candidate_cursor'],
         )
-        self.setSelKeys("1234567890")
+        self.setSelKeys("123456789")
         if self.client.isWindows8Above:
             if self._config['show_mode_icon']:
                 self.addButton("windows-mode-icon", tooltip="中文",
