@@ -1,0 +1,2 @@
+[MESSAGES CONTROL]
+disable=C,R,relative-beyond-top-level,wildcard-import,unused-wildcard-import,attribute-defined-outside-init
