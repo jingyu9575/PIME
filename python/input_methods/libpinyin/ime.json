@@ -1,0 +1,11 @@
+{
+    "name": "拼音 (LibPinyin)",
+    "version": "0.1",
+    "guid": "{245742b6-d1c4-48ea-a17f-83a2343bfa60}",
+	"locale": "zh-Hans-CN",
+    "fallbackLocale": "zh-CN",
+    "icon": "icon\\icon.ico",
+    "win8_icon": "",
+    "moduleName": "ime",
+    "serviceName": "IMETextService"
+}
