@@ -1,7 +1,7 @@
 from textService import TextService, KeyEvent, TF_MOD_SHIFT, TF_MOD_CONTROL
 from keycodes import *
 from . import opencc
-from .consts import *
+from .libpinyin_consts import *
 from .libpinyin import PY, GLIB
 from ctypes import (
     c_uint, c_char, POINTER, byref, c_void_p, string_at, c_int, c_uint8,
@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from collections import defaultdict
 from typing import Optional
 from bisect import bisect_left
+from itertools import chain
 
 
 def eprint(*args, **kwargs):
@@ -124,6 +125,8 @@ class IMETextService(TextService):
                 PY.pinyin_get_full_pinyin_auxiliary_text)
             self._pinyin_parse_more_pinyins = (
                 PY.pinyin_parse_more_full_pinyins)
+
+        self._load_dicts(config_dir / 'dict', userdata_dir / '.dict.sum')
         self._instance = PY.pinyin_alloc_instance(self._context)
 
         self._opencc = (
@@ -487,9 +490,11 @@ class IMETextService(TextService):
                 self._instance, candidate.lookup_candidate, byref(index))
             if index.value != 0:
                 PY.pinyin_train(self._instance, index.value)
+                PY.pinyin_save(self._context)
         elif self._partial_pos == len(self._input):
             PY.pinyin_guess_sentence(self._instance)
             PY.pinyin_train(self._instance, 0)
+            PY.pinyin_save(self._context)
         else:
             self._update_input(True)
             return
@@ -519,6 +524,33 @@ class IMETextService(TextService):
         i = bisect_left(self._custom_phrases_keys, s)
         return (i != len(self._custom_phrases_keys) and
                 self._custom_phrases_keys[i].startswith(s))
+
+    def _load_dicts(self, dict_dir: Path, summary_file: Path):
+        dict_dir.mkdir(exist_ok=True, parents=True)
+        paths = sorted(Path(dict_dir).glob('*.txt'), key=lambda x: x.name)
+        summary = ''.join(f'{v.stat().st_mtime_ns} {v.name}\n' for v in paths)
+        if summary_file.exists():
+            with open(summary_file, 'r', encoding='utf8') as f:
+                if f.read() == summary:
+                    return
+        token = PHRASE_INDEX_MAKE_TOKEN(NETWORK_DICTIONARY, null_token)
+        PY.pinyin_mask_out(self._context, PHRASE_INDEX_LIBRARY_MASK, token)
+
+        p_imp = PY.pinyin_begin_add_phrases(self._context, NETWORK_DICTIONARY)
+        for path in paths:
+            with open(path, 'r', encoding='utf8') as f:
+                for line_lf in f:
+                    phrase, pinyin, count_s, *_ = chain(
+                        line_lf.strip().split(' '), [''] * 3)
+                    if pinyin:
+                        PY.pinyin_iterator_add_phrase(
+                            p_imp, phrase.encode(), pinyin.encode(),
+                            int(count_s) if count_s.isdigit() else -1)
+        PY.pinyin_end_add_phrases(p_imp)
+
+        PY.pinyin_save(self._context)
+        with open(summary_file, 'w', encoding='utf8') as f:
+            f.write(summary)
 
     def onCommand(self, commandId, commandType):
         print("onCommand", commandId, commandType)
