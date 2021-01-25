@@ -258,14 +258,20 @@ std::wstring PipeServer::getPipeName(const wchar_t* baseName) {
 	return pipeName;
 }
 
+static inline bool eqi(const wchar_t* v0, const wchar_t* v1) {
+    return _wcsicmp(v0, v1) == 0;
+}
+
 void PipeServer::parseCommandLine(LPSTR cmd) {
 	int argc;
 	wchar_t** argv = CommandLineToArgvW(GetCommandLine(), &argc);
 	// parse command line options
 	for (int i = 1; i < argc; ++i) {
 		const wchar_t* arg = argv[i];
-		if (wcscmp(arg, L"/quit") == 0)
+		if (eqi(arg, L"/quit"))
 			quitExistingLauncher_ = true;
+        else if (eqi(arg, L"/tray"))
+            useTrayIcon_ = true;
 	}
 	LocalFree(argv);
 }
@@ -493,7 +499,7 @@ void PipeServer::runGuiThread() {
 	auto wndClassAtom = registerWndClass(wndClass);
 	hwnd_ = ::CreateWindowEx(0, LPCTSTR(wndClassAtom), NULL, 0, 0, 0, 0, 0, HWND_DESKTOP, NULL, wndClass.hInstance, this);
 
-	createShellNotifyIcon();
+    if (useTrayIcon_) createShellNotifyIcon();
 
 	MSG msg;
 	while (::GetMessage(&msg, NULL, 0, 0)) {
@@ -501,7 +507,7 @@ void PipeServer::runGuiThread() {
 		::DispatchMessage(&msg);
 	}
 
-	destroyShellNotifyIcon();
+    if (useTrayIcon_) destroyShellNotifyIcon();
 
 	::ExitProcess(0);
 }

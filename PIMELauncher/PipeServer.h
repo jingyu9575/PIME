@@ -111,6 +111,7 @@ private:
 	
 	std::wstring topDirPath_;
 	bool quitExistingLauncher_;
+    bool useTrayIcon_ = false;
 	static PipeServer* singleton_;
 	static wchar_t singleInstanceMutexName_[];
 	std::vector<PipeClient*> clients_;
