@@ -244,18 +244,26 @@ BackendServer* PipeServer::backendFromLangProfileGuid(const char* guid) {
 	return nullptr;
 }
 
+static wstring userName() {
+    wchar_t username[UNLEN + 1];
+    DWORD n = _countof(username);
+    if (GetUserNameW(username, &n))
+        return wstring(username, username + n - 1);
+    return L"NONE";
+}
+
+static DWORD sessionId() {
+    DWORD id;
+    return ProcessIdToSessionId(GetCurrentProcessId(), &id) ? id : -1;
+}
+
+static wstring messageWindowTitle() {
+    return L"PIME_" + to_wstring(sessionId()) + L'_' + userName();
+}
+
 std::wstring PipeServer::getPipeName(const wchar_t* baseName) {
-	std::wstring pipeName;
-	wchar_t username[UNLEN + 1];
-	DWORD unlen = UNLEN + 1;
-	if (GetUserNameW(username, &unlen)) {
-		// add username to the pipe path so it will not clash with other users' pipes.
-        pipeName = L"\\\\.\\pipe\\";
-        pipeName += username;
-        pipeName += L"\\PIME\\";
-        pipeName += baseName;
-	}
-	return pipeName;
+    // add username to the pipe path so it will not clash with other users' pipes.
+    return L"\\\\.\\pipe\\" + userName() + L"\\PIME\\" + baseName;
 }
 
 static inline bool eqi(const wchar_t* v0, const wchar_t* v1) {
@@ -335,10 +343,12 @@ int PipeServer::exec(LPSTR cmd) {
 	parseCommandLine(cmd);
 
 	if (quitExistingLauncher_) { // terminate existing launcher process
-		if (HWND existingHwnd = ::FindWindow(wndClassName_, nullptr)) {
+		if (HWND existingHwnd = ::FindWindowExW(HWND_MESSAGE, NULL,
+            wndClassName_, messageWindowTitle().c_str())) {
 			terminateExistingLauncher(existingHwnd);
-		}
-		return 0;
+        } else
+            return 1;
+        return 0;
 	}
     // ensure that only one instance of PIMELauncher can be running
     if (!initSingleInstance()) {
@@ -497,7 +507,9 @@ void PipeServer::runGuiThread() {
 
 	WNDCLASSEX wndClass;
 	auto wndClassAtom = registerWndClass(wndClass);
-	hwnd_ = ::CreateWindowEx(0, LPCTSTR(wndClassAtom), NULL, 0, 0, 0, 0, 0, HWND_DESKTOP, NULL, wndClass.hInstance, this);
+	hwnd_ = ::CreateWindowExW(0, LPCTSTR(wndClassAtom), NULL,
+        0, 0, 0, 0, 0, HWND_MESSAGE, NULL, wndClass.hInstance, this);
+    SetWindowTextW(hwnd_, messageWindowTitle().c_str());
 
     if (useTrayIcon_) createShellNotifyIcon();
 
