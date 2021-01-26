@@ -15,6 +15,8 @@ from collections import defaultdict
 from typing import Optional
 from bisect import bisect_left
 from itertools import chain
+import functools
+from threading import RLock, Thread, Event
 
 
 def eprint(*args, **kwargs):
@@ -55,6 +57,39 @@ GUID_SHIFT_SPACE = '{6f0b6fac-fa94-4eb4-aea8-86e95e91ec1a}'
 GUID_CTRL_PERIOD = '{54e6c3b0-afdb-430a-92b1-76259247570f}'
 
 
+def synchronized(lock: RLock):
+    def _decorator(wrapped):
+        @functools.wraps(wrapped)
+        def _wrapper(*args, **kwargs):
+            with lock:
+                return wrapped(*args, **kwargs)
+        return _wrapper
+    return _decorator
+
+
+_base_dir = Path(__file__).parent.resolve()
+_config_dir = Path(expandvars('%APPDATA%')) / 'PIME/libpinyin'
+_userdata_dir = _config_dir / 'userdata'
+_userdata_dir.mkdir(exist_ok=True, parents=True)
+_context = PY.pinyin_init(str(_base_dir / 'data').encode(),
+                          str(_userdata_dir).encode())
+_context_lock = RLock()
+_save_context_event = Event()
+
+
+def _save_context_thread():
+    while True:
+        _save_context_event.wait()
+        _save_context_event.clear()
+        while _save_context_event.wait(timeout=5*60):
+            _save_context_event.clear()
+        with _context_lock:
+            PY.pinyin_save(_context)
+
+
+Thread(target=_save_context_thread).start()
+
+
 class IMETextService(TextService):
     PAIR_KEYS = {
         ',': ('comma_period', False),
@@ -65,13 +100,7 @@ class IMETextService(TextService):
         ']': ('square_brackets', True),
     }
 
-    _base_dir = Path(__file__).parent.resolve()
-    _config_dir = Path(expandvars('%APPDATA%')) / 'PIME/libpinyin'
-    _userdata_dir = _config_dir / 'userdata'
-    _userdata_dir.mkdir(exist_ok=True, parents=True)
-    _context = PY.pinyin_init(str(_base_dir / 'data').encode(),
-                              str(_userdata_dir).encode())
-
+    @synchronized(_context_lock)
     def onActivate(self):
         super().onActivate()
         self._pressed_modifier_key = None
@@ -79,8 +108,8 @@ class IMETextService(TextService):
         self._punctuation_indexes = defaultdict(int)
 
         self._config = {}
-        for filename in [self._base_dir / 'defaults.json',
-                         self._config_dir / 'config.json']:
+        for filename in [_base_dir / 'defaults.json',
+                         _config_dir / 'config.json']:
             if Path(filename).is_file():
                 with open(filename, 'r', encoding='utf-8') as f:
                     merge_config(self._config, json.load(f))
@@ -110,9 +139,9 @@ class IMETextService(TextService):
                 'uen_un': PINYIN_CORRECT_UEN_UN, 'ue_ve': PINYIN_CORRECT_UE_VE,
                 'v_u': PINYIN_CORRECT_V_U, 'on_ong': PINYIN_CORRECT_ON_ONG,
             }[correction]
-        PY.pinyin_set_options(self._context, options)
+        PY.pinyin_set_options(_context, options)
         if self._config["double_pinyin_scheme"]:
-            PY.pinyin_set_double_pinyin_scheme(self._context, {
+            PY.pinyin_set_double_pinyin_scheme(_context, {
                 'zrm': DOUBLE_PINYIN_ZRM, 'ms': DOUBLE_PINYIN_MS,
                 'ziguang': DOUBLE_PINYIN_ZIGUANG, 'abc': DOUBLE_PINYIN_ABC,
                 'pyjj': DOUBLE_PINYIN_PYJJ, 'xhe': DOUBLE_PINYIN_XHE,
@@ -127,9 +156,9 @@ class IMETextService(TextService):
             self._pinyin_parse_more_pinyins = (
                 PY.pinyin_parse_more_full_pinyins)
 
-        self._load_dicts(self._config_dir / 'dict',
-                         self._userdata_dir / '.dict.sum')
-        self._instance = PY.pinyin_alloc_instance(self._context)
+        self._load_dicts(_config_dir / 'dict',
+                         _userdata_dir / '.dict.sum')
+        self._instance = PY.pinyin_alloc_instance(_context)
 
         self._opencc = (
             opencc.OpenCC({
@@ -164,6 +193,7 @@ class IMETextService(TextService):
 
         self._reset()
 
+    @synchronized(_context_lock)
     def onDeactivate(self):
         self.removePreservedKey(GUID_SHIFT_SPACE)
         if self.client.isWindows8Above:
@@ -176,7 +206,7 @@ class IMETextService(TextService):
     def _update_mode_icon(self):
         name = 'enabled' if self._enabled else 'disabled'
         self.changeButton("windows-mode-icon",
-                          icon=str(self._base_dir / f"icon/{name}.ico"))
+                          icon=str(_base_dir / f"icon/{name}.ico"))
 
     def _toggle_enabled(self):
         if self._enabled:
@@ -246,6 +276,7 @@ class IMETextService(TextService):
         self.setCompositionString(self._partial + composition)
         self.setCompositionCursor(len(self._partial) + cursor)
 
+    @synchronized(_context_lock)
     def _get_candidate_at(self, index: int):
         lc = c_void_p()
         PY.pinyin_get_candidate(self._instance, index, byref(lc))
@@ -271,6 +302,7 @@ class IMETextService(TextService):
         self.setShowCandidates(bool(candidate_list))
         self.setCandidateCursor(0)
 
+    @synchronized(_context_lock)
     def _update_input(self, back_deselect: bool):
         if not self._input:
             return self._reset()
@@ -445,6 +477,7 @@ class IMETextService(TextService):
 
         return True
 
+    @synchronized(_context_lock)
     def _deselect(self):
         self._partial, self._partial_pos = self._partial_history.pop()
         PY.pinyin_clear_constraint(self._instance, self._partial_pos)
@@ -468,6 +501,7 @@ class IMETextService(TextService):
         except IndexError:
             return None
 
+    @synchronized(_context_lock)
     def _choose(self, n: Optional[int], append=''):
         candidate = self._chosen_candidate(n)
         if not candidate:
@@ -490,11 +524,11 @@ class IMETextService(TextService):
             PY.pinyin_get_candidate_nbest_index(
                 self._instance, candidate.lookup_candidate, byref(index))
             PY.pinyin_train(self._instance, index.value)
-            PY.pinyin_save(self._context)
+            _save_context_event.set()
         elif self._partial_pos == len(self._input):
             PY.pinyin_guess_sentence(self._instance)
             PY.pinyin_train(self._instance, 0)
-            PY.pinyin_save(self._context)
+            _save_context_event.set()
         else:
             self._update_input(True)
             return
@@ -525,6 +559,7 @@ class IMETextService(TextService):
         return (i != len(self._custom_phrases_keys) and
                 self._custom_phrases_keys[i].startswith(s))
 
+    @synchronized(_context_lock)
     def _load_dicts(self, dict_dir: Path, summary_file: Path):
         dict_dir.mkdir(exist_ok=True, parents=True)
         paths = sorted(Path(dict_dir).glob('*.txt'), key=lambda x: x.name)
@@ -534,9 +569,9 @@ class IMETextService(TextService):
                 if f.read() == summary:
                     return
         token = PHRASE_INDEX_MAKE_TOKEN(NETWORK_DICTIONARY, null_token)
-        PY.pinyin_mask_out(self._context, PHRASE_INDEX_LIBRARY_MASK, token)
+        PY.pinyin_mask_out(_context, PHRASE_INDEX_LIBRARY_MASK, token)
 
-        p_imp = PY.pinyin_begin_add_phrases(self._context, NETWORK_DICTIONARY)
+        p_imp = PY.pinyin_begin_add_phrases(_context, NETWORK_DICTIONARY)
         for path in paths:
             with open(path, 'r', encoding='utf8') as f:
                 for line_lf in f:
@@ -548,7 +583,7 @@ class IMETextService(TextService):
                             int(count_s) if count_s.isdigit() else -1)
         PY.pinyin_end_add_phrases(p_imp)
 
-        PY.pinyin_save(self._context)
+        PY.pinyin_save(_context)
         with open(summary_file, 'w', encoding='utf8') as f:
             f.write(summary)
 
