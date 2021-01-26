@@ -107,7 +107,7 @@ void PipeServer::initLogger() {
 		logger_ = spdlog::rotating_logger_mt("PIMELauncher", logFile, MAX_LOG_FILE_SIZE, NUM_LOG_FILES);
 		spdlog::flush_on(spdlog::level::debug);  // flush to the file on any kind of errors (always flush)
 	}
-	catch(const spdlog::spdlog_ex& exc) {
+	catch(const spdlog::spdlog_ex&) {
 		// fail to create file logger, fallback to console logger
 		logger_ = spdlog::stderr_logger_mt("PIMELauncher");
 	}
@@ -281,6 +281,12 @@ void PipeServer::parseCommandLine() {
         } else if (eqi(arg, L"/restart")) {
             messageExistingLauncher_ = WM_COMMAND;
             messageExistingLauncherWParam_ = ID_RESTART_PIME_BACKENDS;
+        } else if (eqi(arg, L"/togglelog")) {
+            messageExistingLauncher_ = WM_COMMAND;
+            messageExistingLauncherWParam_ = ID_ENABLE_DEBUG_LOG;
+        } else if (eqi(arg, L"/showlog")) {
+            messageExistingLauncher_ = WM_COMMAND;
+            messageExistingLauncherWParam_ = ID_SHOW_DEBUG_LOGS;
         } else if (eqi(arg, L"/tray"))
             useTrayIcon_ = true;
 	}
