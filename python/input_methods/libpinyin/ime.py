@@ -224,7 +224,7 @@ class IMETextService(TextService):
             if (keyEvent.keyCode == modifier and
                     modifier_down_count(keyEvent) == 1):
                 self._pressed_modifier_key = modifier
-                return True
+                return False
 
         if self._full_width_ascii and keyEvent.isPrintableChar():
             return True
