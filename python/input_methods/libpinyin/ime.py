@@ -489,9 +489,8 @@ class IMETextService(TextService):
             index = c_uint8()
             PY.pinyin_get_candidate_nbest_index(
                 self._instance, candidate.lookup_candidate, byref(index))
-            if index.value != 0:
-                PY.pinyin_train(self._instance, index.value)
-                PY.pinyin_save(self._context)
+            PY.pinyin_train(self._instance, index.value)
+            PY.pinyin_save(self._context)
         elif self._partial_pos == len(self._input):
             PY.pinyin_guess_sentence(self._instance)
             PY.pinyin_train(self._instance, 0)
