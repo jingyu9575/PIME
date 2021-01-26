@@ -1,6 +1,6 @@
 libpinyin
 libpinyin/libdb-6.0.dll
-libpinyin/libgcc_s_seh-1.dll
+libpinyin/libgcc_s_dw2-1.dll
 libpinyin/libglib-2.0-0.dll
 libpinyin/libiconv-2.dll
 libpinyin/libintl-8.dll
