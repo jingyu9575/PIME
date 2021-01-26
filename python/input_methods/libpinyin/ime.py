@@ -6,7 +6,7 @@ from .libpinyin import PY, GLIB
 from ctypes import (
     c_uint, c_char, POINTER, byref, c_void_p, string_at, c_int, c_uint8,
 )
-import os
+from os.path import expandvars
 import sys
 import json
 from pathlib import Path
@@ -65,17 +65,22 @@ class IMETextService(TextService):
         ']': ('square_brackets', True),
     }
 
+    _base_dir = Path(__file__).parent.resolve()
+    _config_dir = Path(expandvars('%APPDATA%')) / 'PIME/libpinyin'
+    _userdata_dir = _config_dir / 'userdata'
+    _userdata_dir.mkdir(exist_ok=True, parents=True)
+    _context = PY.pinyin_init(str(_base_dir / 'data').encode(),
+                              str(_userdata_dir).encode())
+
     def onActivate(self):
         super().onActivate()
         self._pressed_modifier_key = None
         self._number_decimal_state = False
         self._punctuation_indexes = defaultdict(int)
-        self._base_dir = Path(__file__).parent.resolve()
 
-        config_dir = Path(os.path.expandvars('%APPDATA%')) / 'PIME/libpinyin'
         self._config = {}
         for filename in [self._base_dir / 'defaults.json',
-                         config_dir / 'config.json']:
+                         self._config_dir / 'config.json']:
             if Path(filename).is_file():
                 with open(filename, 'r', encoding='utf-8') as f:
                     merge_config(self._config, json.load(f))
@@ -86,10 +91,6 @@ class IMETextService(TextService):
         self._custom_phrases_keys = list(self._config['custom_phrases'].keys())
         self._custom_phrases_keys.sort()
 
-        userdata_dir = config_dir / 'userdata'
-        userdata_dir.mkdir(exist_ok=True, parents=True)
-        self._context = PY.pinyin_init(str(self._base_dir / 'data').encode(),
-                                       str(userdata_dir).encode())
         options = (PINYIN_INCOMPLETE | DYNAMIC_ADJUST |
                    USE_DIVIDED_TABLE | USE_RESPLIT_TABLE)
         for ambiguity in self._config['pinyin_ambiguities']:
@@ -126,7 +127,8 @@ class IMETextService(TextService):
             self._pinyin_parse_more_pinyins = (
                 PY.pinyin_parse_more_full_pinyins)
 
-        self._load_dicts(config_dir / 'dict', userdata_dir / '.dict.sum')
+        self._load_dicts(self._config_dir / 'dict',
+                         self._userdata_dir / '.dict.sum')
         self._instance = PY.pinyin_alloc_instance(self._context)
 
         self._opencc = (
@@ -169,7 +171,6 @@ class IMETextService(TextService):
 
         del self._opencc
         PY.pinyin_free_instance(self._instance)
-        PY.pinyin_fini(self._context)
         super().onDeactivate()
 
     def _update_mode_icon(self):
