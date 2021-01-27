@@ -175,8 +175,7 @@ class IMETextService(TextService):
         self.setSelKeys("123456789")
         if self.client.isWindows8Above:
             if self._config['show_mode_icon']:
-                self.addButton("windows-mode-icon", tooltip="中文",
-                               commandId=1)
+                self.addButton("windows-mode-icon", commandId=1)
             else:
                 self.removeButton("windows-mode-icon")
             self._update_mode_icon()
@@ -206,6 +205,7 @@ class IMETextService(TextService):
     def _update_mode_icon(self):
         name = 'enabled' if self._enabled else 'disabled'
         self.changeButton("windows-mode-icon",
+                          tooltip="中文" if self._enabled else '英文',
                           icon=str(_base_dir / f"icon/{name}.ico"))
 
     def _toggle_enabled(self):
