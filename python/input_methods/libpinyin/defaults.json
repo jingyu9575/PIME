@@ -3,6 +3,7 @@
 	"enabled": true,
 	"shift_toggle_enabled": true,
 	"ctrl_toggle_enabled": false,
+	"ctrl_shift_toggle_enabled": false,
 	"show_mode_icon": true,
 	"double_pinyin_scheme": false,
 	"original_composition_string": false,

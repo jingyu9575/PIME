@@ -103,7 +103,7 @@ class IMETextService(TextService):
     @synchronized(_context_lock)
     def onActivate(self):
         super().onActivate()
-        self._pressed_modifier_key = None
+        self._modifier_press_state = ''
         self._number_decimal_state = False
         self._punctuation_indexes = defaultdict(int)
 
@@ -219,12 +219,15 @@ class IMETextService(TextService):
         self._number_decimal_state = not self._input and (
             '0' <= char <= '9' or self._number_decimal_state and char == '.')
 
-        self._pressed_modifier_key = None
-        for modifier in [VK_SHIFT, VK_CONTROL]:
-            if (keyEvent.keyCode == modifier and
-                    modifier_down_count(keyEvent) == 1):
-                self._pressed_modifier_key = modifier
-                return False
+        if keyEvent.keyCode == VK_SHIFT or keyEvent.keyCode == VK_CONTROL:
+            if (self._modifier_press_state
+                    or modifier_down_count(keyEvent) <= 1):
+                self._modifier_press_state += (
+                    's' if keyEvent.keyCode == VK_SHIFT else 'c')
+            else:
+                self._modifier_press_state = ''
+            return False
+        self._modifier_press_state = ''
 
         if self._full_width_ascii and keyEvent.isPrintableChar():
             return True
@@ -238,12 +241,29 @@ class IMETextService(TextService):
         return True
 
     def filterKeyUp(self, keyEvent: KeyEvent):
-        vk = keyEvent.keyCode
-        if (vk == self._pressed_modifier_key and
-            (vk == VK_SHIFT and self._config['shift_toggle_enabled'] or
-             vk == VK_CONTROL and self._config['ctrl_toggle_enabled'])):
-            return True
-        self._pressed_modifier_key = None
+        if keyEvent.keyCode == VK_SHIFT or keyEvent.keyCode == VK_CONTROL:
+            if not self._modifier_press_state:
+                return False
+            state = self._modifier_press_state + (
+                'S' if keyEvent.keyCode == VK_SHIFT else 'C')
+            if modifier_down_count(keyEvent) == 0:
+                if (
+                    self._config['shift_toggle_enabled'] and state == 'sS'
+                ) or (
+                    self._config['ctrl_toggle_enabled'] and state == 'cC'
+                ) or (
+                    self._config['ctrl_shift_toggle_enabled'] and
+                    len(state) == 4 and state[:2] in ['sc', 'cs'] and
+                    state[2:] in ['SC', 'CS']
+                ):
+                    # do not change _modifier_press_state; may be called again
+                    return True
+                self._modifier_press_state = ''
+                return False
+            else:
+                self._modifier_press_state = state
+                return False
+        self._modifier_press_state = ''
         return False
 
     def _show_composition(self, parsed_input_len: int):
@@ -468,13 +488,10 @@ class IMETextService(TextService):
 
     def onKeyUp(self, keyEvent: KeyEvent):
         vk = keyEvent.keyCode
-        if vk == self._pressed_modifier_key:
-            self._pressed_modifier_key = None
-            if vk == VK_SHIFT or vk == VK_CONTROL:
-                self._toggle_enabled()
-                return True
+        if vk == VK_SHIFT or vk == VK_CONTROL:
+            self._modifier_press_state = ''
+            self._toggle_enabled()
             return True
-
         return True
 
     @synchronized(_context_lock)
