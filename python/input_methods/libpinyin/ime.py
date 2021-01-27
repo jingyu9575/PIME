@@ -56,6 +56,8 @@ FULL_WIDTH_ASCII_DICT[0x20] = 0x3000
 GUID_SHIFT_SPACE = '{6f0b6fac-fa94-4eb4-aea8-86e95e91ec1a}'
 GUID_CTRL_PERIOD = '{54e6c3b0-afdb-430a-92b1-76259247570f}'
 
+CMD_TOGGLE_ENABLED = 1
+
 
 def synchronized(lock: RLock):
     def _decorator(wrapped):
@@ -175,7 +177,8 @@ class IMETextService(TextService):
         self.setSelKeys("123456789")
         if self.client.isWindows8Above:
             if self._config['show_mode_icon']:
-                self.addButton("windows-mode-icon", commandId=1)
+                self.addButton("windows-mode-icon",
+                               commandId=CMD_TOGGLE_ENABLED)
             else:
                 self.removeButton("windows-mode-icon")
             self._update_mode_icon()
@@ -605,7 +608,8 @@ class IMETextService(TextService):
             f.write(summary)
 
     def onCommand(self, commandId, commandType):
-        print("onCommand", commandId, commandType)
+        if commandId == CMD_TOGGLE_ENABLED:
+            self._toggle_enabled()
 
     def onPreservedKey(self, guid):
         if guid == GUID_SHIFT_SPACE:
